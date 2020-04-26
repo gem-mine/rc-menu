@@ -48,7 +48,6 @@ export interface MenuProps {
   expandIcon?: RenderIconType;
   overflowedIndicator?: React.ReactNode;
   role?: string;
-
   /** Menu motion define */
   motion?: MotionType;
 
@@ -56,6 +55,9 @@ export interface MenuProps {
   openTransitionName?: string;
   /** @deprecated Please use `motion` instead */
   openAnimation?: OpenAnimation;
+
+  /** direction of menu */
+  direction?: 'ltr' | 'rtl';
 }
 
 class Menu extends React.Component<MenuProps> {
@@ -232,6 +234,9 @@ class Menu extends React.Component<MenuProps> {
   render() {
     let props: MenuProps & { parentMenu?: Menu } = { ...this.props };
     props.className += ` ${props.prefixCls}-root`;
+    if (props.direction === 'rtl') {
+      props.className += ` ${props.prefixCls}-rtl`;
+    }
     props = {
       ...props,
       onClick: this.onClick,

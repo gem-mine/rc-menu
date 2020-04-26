@@ -46,6 +46,7 @@ export interface MenuItemProps {
   mode?: MenuMode;
   inlineIndent?: number;
   level?: number;
+  direction?: 'ltr' | 'rtl';
 }
 
 export class MenuItem extends React.Component<MenuItemProps> {
@@ -228,9 +229,14 @@ export class MenuItem extends React.Component<MenuItemProps> {
       ...props.style,
     };
     if (props.mode === 'inline') {
-      style.paddingLeft = props.inlineIndent * props.level;
+      if (props.direction === 'rtl') {
+        style.paddingRight = props.inlineIndent * props.level;
+      } else {
+        style.paddingLeft = props.inlineIndent * props.level;
+      }
     }
     menuAllProps.forEach(key => delete props[key]);
+    delete props.direction;
     let icon = this.props.itemIcon;
     if (typeof this.props.itemIcon === 'function') {
       // TODO: This is a bug which should fixed after TS refactor

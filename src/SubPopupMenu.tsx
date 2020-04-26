@@ -152,6 +152,8 @@ export interface SubPopupMenuProps {
   // openTransitionName?: string;
   // openAnimation?: OpenAnimation;
   motion?: MotionType;
+
+  direction?: 'ltr' | 'rtl';
 }
 
 export class SubPopupMenu extends React.Component<SubPopupMenuProps> {
@@ -384,6 +386,7 @@ export class SubPopupMenu extends React.Component<SubPopupMenuProps> {
       itemIcon: childProps.itemIcon || this.props.itemIcon,
       expandIcon: childProps.expandIcon || this.props.expandIcon,
       ...extraProps,
+      direction: props.direction,
     };
     // ref: https://github.com/ant-design/ant-design/issues/13943
     if (props.mode === 'inline' || isMobileDevice()) {
@@ -464,10 +467,10 @@ export class SubPopupMenu extends React.Component<SubPopupMenuProps> {
     );
   }
 }
-const connected = connect()(SubPopupMenu) as (React.ComponentClass<
+const connected = connect()(SubPopupMenu) as React.ComponentClass<
   SubPopupMenuProps
-> & {
+  > & {
   getWrappedInstance: () => SubPopupMenu;
-});
+};
 
 export default connected;
