@@ -1,0 +1,389 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Menu render role listbox renders menu correctly 1`] = `
+<ul
+  class="rc-menu myMenu rc-menu-root rc-menu-vertical"
+  role="listbox"
+  tabindex="0"
+>
+  <li
+    aria-selected="false"
+    class="rc-menu-item"
+    role="option"
+  >
+    1
+  </li>
+  <li
+    aria-selected="false"
+    class="rc-menu-item"
+    role="option"
+  >
+    2
+  </li>
+  <li
+    aria-selected="false"
+    class="rc-menu-item"
+    role="option"
+  >
+    3
+  </li>
+</ul>
+`;
+
+exports[`Menu should render horizontal menu correctly 1`] = `
+<ul
+  class="rc-menu myMenu rc-menu-root rc-menu-horizontal"
+  role="menu"
+  tabindex="0"
+>
+  <li
+    class="rc-menu-submenu rc-menu-submenu-horizontal rc-menu-overflowed-submenu"
+    role="menuitem"
+    style="display:none"
+  >
+    <div
+      aria-expanded="false"
+      aria-haspopup="true"
+      class="rc-menu-submenu-title"
+    >
+      <span>
+        ···
+      </span>
+      <i
+        class="rc-menu-submenu-arrow"
+      />
+    </div>
+  </li>
+  <li
+    class=" rc-menu-item-group"
+  >
+    <div
+      class="rc-menu-item-group-title"
+      title="g1"
+    >
+      g1
+    </div>
+    <ul
+      class="rc-menu-item-group-list"
+    >
+      <li
+        class="rc-menu-item"
+        role="menuitem"
+      >
+        1
+      </li>
+      <li
+        class=" rc-menu-item-divider"
+      />
+      <li
+        class="rc-menu-item"
+        role="menuitem"
+      >
+        2
+      </li>
+    </ul>
+  </li>
+  <li
+    class="rc-menu-submenu rc-menu-submenu-horizontal rc-menu-overflowed-submenu"
+    role="menuitem"
+    style="display:none"
+  >
+    <div
+      aria-expanded="false"
+      aria-haspopup="true"
+      class="rc-menu-submenu-title"
+    >
+      <span>
+        ···
+      </span>
+      <i
+        class="rc-menu-submenu-arrow"
+      />
+    </div>
+  </li>
+  <li
+    class="rc-menu-item"
+    role="menuitem"
+  >
+    3
+  </li>
+  <li
+    class="rc-menu-submenu rc-menu-submenu-horizontal rc-menu-overflowed-submenu"
+    role="menuitem"
+    style="display:none"
+  >
+    <div
+      aria-expanded="false"
+      aria-haspopup="true"
+      class="rc-menu-submenu-title"
+    >
+      <span>
+        ···
+      </span>
+      <i
+        class="rc-menu-submenu-arrow"
+      />
+    </div>
+  </li>
+  <li
+    class=" rc-menu-item-group"
+  >
+    <div
+      class="rc-menu-item-group-title"
+      title="g2"
+    >
+      g2
+    </div>
+    <ul
+      class="rc-menu-item-group-list"
+    >
+      <li
+        class="rc-menu-item"
+        role="menuitem"
+      >
+        4
+      </li>
+      <li
+        aria-disabled="true"
+        class="rc-menu-item rc-menu-item-disabled"
+        role="menuitem"
+      >
+        5
+      </li>
+    </ul>
+  </li>
+  <li
+    class="rc-menu-submenu rc-menu-submenu-horizontal rc-menu-overflowed-submenu"
+    role="menuitem"
+    style="display:none"
+  >
+    <div
+      aria-expanded="false"
+      aria-haspopup="true"
+      class="rc-menu-submenu-title"
+    >
+      <span>
+        ···
+      </span>
+      <i
+        class="rc-menu-submenu-arrow"
+      />
+    </div>
+  </li>
+  <li
+    class="rc-menu-submenu rc-menu-submenu-horizontal"
+    role="menuitem"
+  >
+    <div
+      aria-expanded="false"
+      aria-haspopup="true"
+      class="rc-menu-submenu-title"
+      title="submenu"
+    >
+      submenu
+      <i
+        class="rc-menu-submenu-arrow"
+      />
+    </div>
+  </li>
+  <li
+    class="rc-menu-submenu rc-menu-submenu-horizontal rc-menu-overflowed-submenu"
+    role="menuitem"
+    style="visibility:hidden;position:absolute"
+  >
+    <div
+      aria-expanded="false"
+      aria-haspopup="true"
+      class="rc-menu-submenu-title"
+    >
+      <span>
+        ···
+      </span>
+      <i
+        class="rc-menu-submenu-arrow"
+      />
+    </div>
+  </li>
+</ul>
+`;
+
+exports[`Menu should render inline menu correctly 1`] = `
+<ul
+  class="rc-menu myMenu rc-menu-root rc-menu-inline"
+  role="menu"
+  tabindex="0"
+>
+  <li
+    class=" rc-menu-item-group"
+  >
+    <div
+      class="rc-menu-item-group-title"
+      title="g1"
+    >
+      g1
+    </div>
+    <ul
+      class="rc-menu-item-group-list"
+    >
+      <li
+        class="rc-menu-item"
+        role="menuitem"
+        style="padding-left:24px"
+      >
+        1
+      </li>
+      <li
+        class=" rc-menu-item-divider"
+      />
+      <li
+        class="rc-menu-item"
+        role="menuitem"
+        style="padding-left:24px"
+      >
+        2
+      </li>
+    </ul>
+  </li>
+  <li
+    class="rc-menu-item"
+    role="menuitem"
+    style="padding-left:24px"
+  >
+    3
+  </li>
+  <li
+    class=" rc-menu-item-group"
+  >
+    <div
+      class="rc-menu-item-group-title"
+      title="g2"
+    >
+      g2
+    </div>
+    <ul
+      class="rc-menu-item-group-list"
+    >
+      <li
+        class="rc-menu-item"
+        role="menuitem"
+        style="padding-left:24px"
+      >
+        4
+      </li>
+      <li
+        aria-disabled="true"
+        class="rc-menu-item rc-menu-item-disabled"
+        role="menuitem"
+        style="padding-left:24px"
+      >
+        5
+      </li>
+    </ul>
+  </li>
+  <li
+    class="rc-menu-submenu rc-menu-submenu-inline"
+    role="menuitem"
+  >
+    <div
+      aria-expanded="false"
+      aria-haspopup="true"
+      class="rc-menu-submenu-title"
+      style="padding-left:24px"
+      title="submenu"
+    >
+      submenu
+      <i
+        class="rc-menu-submenu-arrow"
+      />
+    </div>
+    <div />
+  </li>
+</ul>
+`;
+
+exports[`Menu should render vertical menu correctly 1`] = `
+<ul
+  class="rc-menu myMenu rc-menu-root rc-menu-vertical"
+  role="menu"
+  tabindex="0"
+>
+  <li
+    class=" rc-menu-item-group"
+  >
+    <div
+      class="rc-menu-item-group-title"
+      title="g1"
+    >
+      g1
+    </div>
+    <ul
+      class="rc-menu-item-group-list"
+    >
+      <li
+        class="rc-menu-item"
+        role="menuitem"
+      >
+        1
+      </li>
+      <li
+        class=" rc-menu-item-divider"
+      />
+      <li
+        class="rc-menu-item"
+        role="menuitem"
+      >
+        2
+      </li>
+    </ul>
+  </li>
+  <li
+    class="rc-menu-item"
+    role="menuitem"
+  >
+    3
+  </li>
+  <li
+    class=" rc-menu-item-group"
+  >
+    <div
+      class="rc-menu-item-group-title"
+      title="g2"
+    >
+      g2
+    </div>
+    <ul
+      class="rc-menu-item-group-list"
+    >
+      <li
+        class="rc-menu-item"
+        role="menuitem"
+      >
+        4
+      </li>
+      <li
+        aria-disabled="true"
+        class="rc-menu-item rc-menu-item-disabled"
+        role="menuitem"
+      >
+        5
+      </li>
+    </ul>
+  </li>
+  <li
+    class="rc-menu-submenu rc-menu-submenu-vertical"
+    role="menuitem"
+  >
+    <div
+      aria-expanded="false"
+      aria-haspopup="true"
+      class="rc-menu-submenu-title"
+      title="submenu"
+    >
+      submenu
+      <i
+        class="rc-menu-submenu-arrow"
+      />
+    </div>
+  </li>
+</ul>
+`;
