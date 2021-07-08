@@ -1,19 +1,21 @@
-jest.mock('mutationobserver-shim');
-
-const mockedUtil = require('../src/util');
-
-/* eslint-disable no-undef, react/no-multi-comp */
+/* eslint-disable no-undef, react/no-multi-comp, react/jsx-curly-brace-presence, max-classes-per-file */
 import React from 'react';
-import { render, mount } from 'enzyme';
-import { renderToJson } from 'enzyme-to-json';
+import { act } from 'react-dom/test-utils';
+import { mount } from 'enzyme';
 import KeyCode from 'rc-util/lib/KeyCode';
+import { resetWarned } from 'rc-util/lib/warning';
 import Menu, { MenuItem, MenuItemGroup, SubMenu, Divider } from '../src';
 
 describe('Menu', () => {
   describe('should render', () => {
     function createMenu(props) {
       return (
-        <Menu className="myMenu" openAnimation="fade" {...props}>
+        <Menu
+          disabledOverflow
+          className="myMenu"
+          openAnimation="fade"
+          {...props}
+        >
           <MenuItemGroup title="g1">
             <MenuItem key="1">1</MenuItem>
             <Divider />
@@ -35,27 +37,52 @@ describe('Menu', () => {
 
     ['vertical', 'horizontal', 'inline'].forEach(mode => {
       it(`${mode} menu correctly`, () => {
-        const wrapper = render(createMenu({ mode }));
-        expect(renderToJson(wrapper)).toMatchSnapshot();
+        const wrapper = mount(createMenu({ mode }));
+        expect(wrapper.render()).toMatchSnapshot();
       });
 
       it(`${mode} menu with empty children without error`, () => {
-        expect(() => render(<Menu mode={mode}>{[]}</Menu>)).not.toThrow();
+        expect(() => mount(<Menu mode={mode}>{[]}</Menu>)).not.toThrow();
       });
 
       it(`${mode} menu with undefined children without error`, () => {
-        expect(() => render(<Menu mode={mode} />)).not.toThrow();
+        expect(() => mount(<Menu mode={mode} />)).not.toThrow();
       });
 
       it(`${mode} menu that has a submenu with undefined children without error`, () => {
         expect(() =>
-          render(
+          mount(
             <Menu mode={mode}>
               <SubMenu />
             </Menu>,
           ),
         ).not.toThrow();
       });
+
+      it(`${mode} menu with rtl direction correctly`, () => {
+        const wrapper = mount(createMenu({ mode, direction: 'rtl' }));
+        expect(wrapper.render()).toMatchSnapshot();
+
+        expect(wrapper.find('ul').first().props().className).toContain('-rtl');
+      });
+    });
+
+    it('should support Fragment', () => {
+      const wrapper = mount(
+        <Menu>
+          <SubMenu title="submenu">
+            <MenuItem key="6">6</MenuItem>
+          </SubMenu>
+          <MenuItem key="7">6</MenuItem>
+          <>
+            <SubMenu title="submenu">
+              <MenuItem key="8">6</MenuItem>
+            </SubMenu>
+            <MenuItem key="9">6</MenuItem>
+          </>
+        </Menu>,
+      );
+      expect(wrapper.render()).toMatchSnapshot();
     });
   });
 
@@ -76,9 +103,9 @@ describe('Menu', () => {
       );
     }
 
-    it(`renders menu correctly`, () => {
-      const wrapper = render(createMenu());
-      expect(renderToJson(wrapper)).toMatchSnapshot();
+    it('renders menu correctly', () => {
+      const wrapper = mount(createMenu());
+      expect(wrapper.render()).toMatchSnapshot();
     });
   });
 
@@ -89,18 +116,12 @@ describe('Menu', () => {
         <MenuItem key="2">2</MenuItem>
       </Menu>,
     );
-    expect(
-      wrapper
-        .find('MenuItem')
-        .first()
-        .props().active,
-    ).toBe(true);
-    expect(
-      wrapper
-        .find('MenuItem')
-        .last()
-        .props().active,
-    ).toBe(false);
+    expect(wrapper.isActive(0)).toBeTruthy();
+    expect(wrapper.isActive(1)).toBeFalsy();
+
+    wrapper.setProps({ activeKey: '2' });
+    expect(wrapper.isActive(0)).toBeFalsy();
+    expect(wrapper.isActive(1)).toBeTruthy();
   });
 
   it('active first item', () => {
@@ -111,11 +132,8 @@ describe('Menu', () => {
       </Menu>,
     );
     expect(
-      wrapper
-        .find('MenuItem')
-        .first()
-        .props().active,
-    ).toBe(true);
+      wrapper.find('.rc-menu-item').first().hasClass('rc-menu-item-active'),
+    ).toBeTruthy();
   });
 
   it('should render none menu item children', () => {
@@ -143,16 +161,10 @@ describe('Menu', () => {
         <MenuItem key="2">2</MenuItem>
       </Menu>,
     );
-    wrapper
-      .find('MenuItem')
-      .first()
-      .simulate('click');
-    wrapper
-      .find('MenuItem')
-      .last()
-      .simulate('click');
+    wrapper.find('.rc-menu-item').first().simulate('click');
+    wrapper.find('.rc-menu-item').last().simulate('click');
 
-    expect(wrapper.find('.rc-menu-item-selected').length).toBe(2);
+    expect(wrapper.find('li.rc-menu-item-selected')).toHaveLength(2);
   });
 
   it('can be controlled by selectedKeys', () => {
@@ -162,20 +174,38 @@ describe('Menu', () => {
         <MenuItem key="2">2</MenuItem>
       </Menu>,
     );
-    expect(
-      wrapper
-        .find('li')
-        .first()
-        .props().className,
-    ).toContain('-selected');
+    expect(wrapper.find('li').first().props().className).toContain('-selected');
     wrapper.setProps({ selectedKeys: ['2'] });
     wrapper.update();
-    expect(
-      wrapper
-        .find('li')
-        .last()
-        .props().className,
-    ).toContain('-selected');
+    expect(wrapper.find('li').last().props().className).toContain('-selected');
+  });
+
+  it('empty selectedKeys not to throw', () => {
+    mount(
+      <Menu selectedKeys={null}>
+        <MenuItem key="foo">foo</MenuItem>
+      </Menu>,
+    );
+  });
+
+  it('not selectable', () => {
+    const onSelect = jest.fn();
+
+    const wrapper = mount(
+      <Menu onSelect={onSelect} selectedKeys={[]}>
+        <MenuItem key="bamboo">Bamboo</MenuItem>
+      </Menu>,
+    );
+
+    wrapper.findItem(0).simulate('click');
+    expect(onSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ selectedKeys: ['bamboo'] }),
+    );
+
+    onSelect.mockReset();
+    wrapper.setProps({ selectable: false });
+    wrapper.findItem(0).simulate('click');
+    expect(onSelect).not.toHaveBeenCalled();
   });
 
   it('select default item', () => {
@@ -185,57 +215,107 @@ describe('Menu', () => {
         <MenuItem key="2">2</MenuItem>
       </Menu>,
     );
-    expect(
-      wrapper
-        .find('li')
-        .first()
-        .props().className,
-    ).toContain('-selected');
+    expect(wrapper.find('li').first().props().className).toContain('-selected');
   });
 
-  it('can be controlled by openKeys', () => {
+  it('issue https://github.com/ant-design/ant-design/issues/29429', () => {
+    // don't use selectedKeys as string
+    // it is a compatible feature for https://github.com/ant-design/ant-design/issues/29429
     const wrapper = mount(
-      <Menu openKeys={['g1']}>
-        <MenuItemGroup key="g1">
-          <MenuItem key="1">1</MenuItem>
-        </MenuItemGroup>
-        <MenuItemGroup key="g2">
-          <MenuItem key="2">2</MenuItem>
-        </MenuItemGroup>
+      <Menu selectedKeys="item_abc">
+        <MenuItem key="item_a">1</MenuItem>
+        <MenuItem key="item_abc">2</MenuItem>
       </Menu>,
     );
-    expect(
-      wrapper
-        .find('ul')
-        .first()
-        .props().className,
-    ).not.toContain('-hidden');
-    wrapper.setProps({ openKeys: ['g2'] });
-    expect(
-      wrapper
-        .find('ul')
-        .last()
-        .props().className,
-    ).not.toContain('-hidden');
+    expect(wrapper.find('li').at(0).props().className).not.toContain(
+      '-selected',
+    );
+    expect(wrapper.find('li').at(1).props().className).toContain('-selected');
+  });
+
+  describe('openKeys', () => {
+    it('can be controlled by openKeys', () => {
+      const wrapper = mount(
+        <Menu openKeys={['g1']}>
+          <Menu.SubMenu key="g1">
+            <MenuItem key="1">1</MenuItem>
+          </Menu.SubMenu>
+          <Menu.SubMenu key="g2">
+            <MenuItem key="2">2</MenuItem>
+          </Menu.SubMenu>
+        </Menu>,
+      );
+
+      expect(
+        wrapper.find('InlineSubMenuList').first().props().open,
+      ).toBeTruthy();
+      expect(wrapper.find('InlineSubMenuList').last().props().open).toBeFalsy();
+
+      wrapper.setProps({ openKeys: ['g2'] });
+      expect(
+        wrapper.find('InlineSubMenuList').first().props().open,
+      ).toBeFalsy();
+      expect(
+        wrapper.find('InlineSubMenuList').last().props().open,
+      ).toBeTruthy();
+    });
+
+    it('openKeys should allow to be empty', () => {
+      const wrapper = mount(
+        <Menu
+          onClick={() => {}}
+          onOpenChange={() => {}}
+          openKeys={undefined}
+          selectedKeys={['1']}
+          mode="inline"
+        >
+          <SubMenu title="1231">
+            <MenuItem>
+              <a>
+                <span>123123</span>
+              </a>
+            </MenuItem>
+          </SubMenu>
+        </Menu>,
+      );
+      expect(wrapper).toBeTruthy();
+    });
+
+    it('null of openKeys', () => {
+      const wrapper = mount(
+        <Menu openKeys={null} mode="inline">
+          <SubMenu key="bamboo" title="Bamboo">
+            <MenuItem key="light">Light</MenuItem>
+          </SubMenu>
+        </Menu>,
+      );
+      expect(wrapper).toBeTruthy();
+    });
   });
 
   it('open default submenu', () => {
+    jest.useFakeTimers();
+
     const wrapper = mount(
       <Menu defaultOpenKeys={['g1']}>
-        <MenuItemGroup key="g1">
+        <SubMenu key="g1">
           <MenuItem key="1">1</MenuItem>
-        </MenuItemGroup>
-        <MenuItemGroup key="g2">
+        </SubMenu>
+        <SubMenu key="g2">
           <MenuItem key="2">2</MenuItem>
-        </MenuItemGroup>
+        </SubMenu>
       </Menu>,
     );
-    expect(
-      wrapper
-        .find('ul')
-        .first()
-        .props().className,
-    ).not.toContain('-hidden');
+
+    act(() => {
+      jest.runAllTimers();
+      wrapper.update();
+    });
+
+    expect(wrapper.find('PopupTrigger').first().props().visible).toBeTruthy();
+    expect(wrapper.find('PopupTrigger').last().props().visible).toBeFalsy();
+
+    jest.useRealTimers();
   });
 
   it('fires select event', () => {
@@ -246,26 +326,49 @@ describe('Menu', () => {
         <MenuItem key="2">2</MenuItem>
       </Menu>,
     );
-    wrapper
-      .find('MenuItem')
-      .first()
-      .simulate('click');
+    wrapper.find('MenuItem').first().simulate('click');
     expect(handleSelect.mock.calls[0][0].key).toBe('1');
   });
 
   it('fires click event', () => {
+    jest.useFakeTimers();
+
+    resetWarned();
+
+    const errorSpy = jest.spyOn(console, 'error');
+
     const handleClick = jest.fn();
     const wrapper = mount(
-      <Menu onClick={handleClick}>
+      <Menu onClick={handleClick} openKeys={['parent']}>
         <MenuItem key="1">1</MenuItem>
         <MenuItem key="2">2</MenuItem>
+        <Menu.SubMenu key="parent">
+          <MenuItem key="3">3</MenuItem>
+        </Menu.SubMenu>
       </Menu>,
     );
-    wrapper
-      .find('MenuItem')
-      .first()
-      .simulate('click');
-    expect(handleClick.mock.calls[0][0].key).toBe('1');
+
+    act(() => {
+      jest.runAllTimers();
+      wrapper.update();
+    });
+
+    wrapper.find('.rc-menu-item').first().simulate('click');
+    const info = handleClick.mock.calls[0][0];
+    expect(info.key).toBe('1');
+    expect(info.item).toBeTruthy();
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Warning: `info.item` is deprecated since we will move to function component that not provides React Node instance in future.',
+    );
+
+    handleClick.mockReset();
+    wrapper.find('.rc-menu-item').last().simulate('click');
+    expect(handleClick.mock.calls[0][0].keyPath).toEqual(['3', 'parent']);
+
+    errorSpy.mockRestore();
+
+    jest.useRealTimers();
   });
 
   it('fires deselect event', () => {
@@ -276,11 +379,7 @@ describe('Menu', () => {
         <MenuItem key="2">2</MenuItem>
       </Menu>,
     );
-    wrapper
-      .find('MenuItem')
-      .first()
-      .simulate('click')
-      .simulate('click');
+    wrapper.find('MenuItem').first().simulate('click').simulate('click');
     expect(handleDeselect.mock.calls[0][0].key).toBe('1');
   });
 
@@ -292,10 +391,8 @@ describe('Menu', () => {
         <MenuItem key="item2">item2</MenuItem>
       </Menu>,
     );
-    let menuItem = wrapper.find('MenuItem').last();
-    menuItem.simulate('mouseEnter');
-    menuItem = wrapper.find('MenuItem').last();
-    expect(menuItem.props().active).toBe(true);
+    wrapper.find('li').last().simulate('mouseEnter');
+    expect(wrapper.isActive(2)).toBeTruthy();
   });
 
   it('active by key down', () => {
@@ -306,81 +403,21 @@ describe('Menu', () => {
       </Menu>,
     );
 
-    wrapper.simulate('keyDown', { keyCode: KeyCode.DOWN });
-    expect(
-      wrapper
-        .find('MenuItem')
-        .at(1)
-        .props().active,
-    ).toBe(true);
+    // KeyDown will not change activeKey since control
+    wrapper.find('Overflow').simulate('keyDown', { which: KeyCode.DOWN });
+    expect(wrapper.isActive(0)).toBeTruthy();
+
+    wrapper.setProps({ activeKey: '2' });
+    expect(wrapper.isActive(1)).toBeTruthy();
   });
 
-  it('keydown works when children change', () => {
-    class App extends React.Component {
-      state = {
-        items: [1, 2, 3],
-      };
-
-      render() {
-        return (
-          <Menu>
-            {this.state.items.map(i => (
-              <MenuItem key={i}>{i}</MenuItem>
-            ))}
-          </Menu>
-        );
-      }
-    }
-
-    const wrapper = mount(<App />);
-
-    wrapper.setState({ items: [0, 1] });
-
-    wrapper.find('Menu').simulate('keyDown', { keyCode: KeyCode.DOWN });
-    expect(
-      wrapper
-        .find('MenuItem')
-        .at(0)
-        .props().active,
-    ).toBe(true);
-
-    wrapper.find('Menu').simulate('keyDown', { keyCode: KeyCode.DOWN });
-    expect(
-      wrapper
-        .find('MenuItem')
-        .at(1)
-        .props().active,
-    ).toBe(true);
-  });
-
-  it('active first item when children changes', () => {
-    class App extends React.Component {
-      state = {
-        items: ['foo'],
-      };
-
-      render() {
-        return (
-          <Menu defaultActiveFirst activeKey="" selectedKeys={['foo']}>
-            {this.state.items.map(item => (
-              <MenuItem key={item}>{item}</MenuItem>
-            ))}
-          </Menu>
-        );
-      }
-    }
-
-    const wrapper = mount(<App />);
-
-    wrapper.setState({ items: ['bar', 'foo'] });
-    wrapper.update();
-
-    expect(
-      wrapper
-        .find('li')
-        .first()
-        .hasClass('rc-menu-item-active'),
-    ).toBe(true);
+  it('defaultActiveFirst', () => {
+    const wrapper = mount(
+      <Menu selectedKeys={['foo']} defaultActiveFirst>
+        <MenuItem key="foo">foo</MenuItem>
+      </Menu>,
+    );
+    expect(wrapper.isActive(0)).toBeTruthy();
   });
 
   it('should accept builtinPlacements', () => {
@@ -409,220 +446,182 @@ describe('Menu', () => {
     );
   });
 
-  describe('submenu mode', () => {
-    it('should use menu mode by default', () => {
+  describe('motion', () => {
+    const defaultMotions = {
+      inline: { motionName: 'inlineMotion' },
+      horizontal: { motionName: 'horizontalMotion' },
+      other: { motionName: 'defaultMotion' },
+    };
+
+    it('defaultMotions should work correctly', () => {
       const wrapper = mount(
-        <Menu mode="horizontal">
-          <SubMenu title="submenu">
-            <MenuItem>menuItem</MenuItem>
+        <Menu mode="inline" defaultMotions={defaultMotions}>
+          <SubMenu key="bamboo">
+            <MenuItem key="light" />
           </SubMenu>
         </Menu>,
       );
 
+      // Inline
+      wrapper.setProps({ mode: 'inline' });
+      expect(wrapper.find('CSSMotion').last().prop('motionName')).toEqual(
+        'inlineMotion',
+      );
+
+      // Horizontal
+      wrapper.setProps({ mode: 'horizontal' });
       expect(
-        wrapper
-          .find('SubMenu')
-          .first()
-          .prop('mode'),
-      ).toEqual('horizontal');
+        wrapper.find('Trigger').last().prop('popupMotion').motionName,
+      ).toEqual('horizontalMotion');
+
+      // Default
+      wrapper.setProps({ mode: 'vertical' });
+      expect(
+        wrapper.find('Trigger').last().prop('popupMotion').motionName,
+      ).toEqual('defaultMotion');
     });
 
-    it('should be able to customize SubMenu mode', () => {
+    it('motion is first level', () => {
       const wrapper = mount(
-        <Menu mode="horizontal">
-          <SubMenu title="submenu" mode="vertical-right">
-            <MenuItem>menuItem</MenuItem>
+        <Menu
+          mode="inline"
+          defaultMotions={defaultMotions}
+          motion={{ motionName: 'bambooLight' }}
+        >
+          <SubMenu key="bamboo">
+            <MenuItem key="light" />
           </SubMenu>
         </Menu>,
       );
 
+      // Inline
+      wrapper.setProps({ mode: 'inline' });
+      expect(wrapper.find('CSSMotion').last().prop('motionName')).toEqual(
+        'bambooLight',
+      );
+
+      // Horizontal
+      wrapper.setProps({ mode: 'horizontal' });
       expect(
-        wrapper
-          .find('SubMenu')
-          .first()
-          .prop('mode'),
-      ).toEqual('vertical-right');
+        wrapper.find('Trigger').last().prop('popupMotion').motionName,
+      ).toEqual('bambooLight');
+
+      // Default
+      wrapper.setProps({ mode: 'vertical' });
+      expect(
+        wrapper.find('Trigger').last().prop('popupMotion').motionName,
+      ).toEqual('bambooLight');
     });
   });
 
-  describe('DOMWrap Allow Overflow', () => {
-    const overflowIndicatorSelector = 'SubMenu.rc-menu-overflowed-submenu';
-    function createMenu(props) {
-      return (
-        <Menu
-          mode="horizontal"
-          className="myMenu"
-          openAnimation="fade"
-          overflowedIndicator={
-            <div className="test-overflow-indicator">...</div>
-          }
-          {...props}
-        >
-          <MenuItem key="1">1</MenuItem>
-          <MenuItem key="2" disabled>
-            2
-          </MenuItem>
-          <MenuItem key="3">3</MenuItem>
-          <MenuItem key="4">4</MenuItem>
-        </Menu>
-      );
-    }
+  it('onMouseEnter should work', () => {
+    const onMouseEnter = jest.fn();
+    const wrapper = mount(
+      <Menu onMouseEnter={onMouseEnter} defaultSelectedKeys={['test1']}>
+        <MenuItem key="test1">Navigation One</MenuItem>
+        <MenuItem key="test2">Navigation Two</MenuItem>
+      </Menu>,
+    );
 
-    let wrapper;
+    wrapper.find('ul.rc-menu-root').simulate('mouseEnter');
+    expect(onMouseEnter).toHaveBeenCalled();
+  });
 
-    it('should not include overflow indicator when having enough width', () => {
-      const indicatorWidth = 50; // actual width including 40 px padding, which will be 50;
-      const liWidths = [50, 50, 50, 50];
-      const availableWidth = 250;
-      const widths = [...liWidths, indicatorWidth, availableWidth];
-      let i = 0;
-      mockedUtil.getWidth = () => {
-        return widths[i++];
-      };
-      wrapper = mount(createMenu());
+  it('Nest children active should bump to top', async () => {
+    const wrapper = mount(
+      <Menu activeKey="light" mode="vertical">
+        <SubMenu key="bamboo" title="Bamboo">
+          <MenuItem key="light">Light</MenuItem>
+        </SubMenu>
+      </Menu>,
+    );
 
-      // overflow indicator placeholder
-      expect(
-        wrapper
-          .find(overflowIndicatorSelector)
-          .at(4)
-          .prop('style'),
-      ).toEqual({
-        visibility: 'hidden',
-        position: 'absolute',
-      });
+    expect(wrapper.exists('.rc-menu-submenu-active')).toBeTruthy();
+  });
 
-      // last overflow indicator should be hidden
-      expect(
-        wrapper
-          .find(overflowIndicatorSelector)
-          .at(3)
-          .prop('style'),
-      ).toEqual({
-        display: 'none',
-      });
+  it('not warning on destroy', async () => {
+    const errorSpy = jest.spyOn(console, 'error');
 
-      expect(
-        wrapper
-          .find('MenuItem li')
-          .at(0)
-          .prop('style'),
-      ).toEqual({});
-      expect(
-        wrapper
-          .find('MenuItem li')
-          .at(1)
-          .prop('style'),
-      ).toEqual({});
-      expect(
-        wrapper
-          .find('MenuItem li')
-          .at(2)
-          .prop('style'),
-      ).toEqual({});
-      expect(
-        wrapper
-          .find('MenuItem li')
-          .at(3)
-          .prop('style'),
-      ).toEqual({});
-    });
+    const wrapper = mount(
+      <Menu>
+        <MenuItem key="bamboo">Bamboo</MenuItem>
+      </Menu>,
+    );
 
-    it('should include overflow indicator when having not enough width', () => {
-      const indicatorWidth = 5; // actual width including 40 px padding, which will be 45;
-      const liWidths = [50, 50, 50, 50];
-      const availableWidth = 145;
-      const widths = [...liWidths, indicatorWidth, availableWidth];
-      let i = 0;
-      mockedUtil.getWidth = () => {
-        return widths[i++];
-      };
-      wrapper = mount(createMenu());
+    wrapper.unmount();
 
-      expect(
-        wrapper
-          .find('MenuItem li')
-          .at(0)
-          .prop('style'),
-      ).toEqual({});
-      expect(
-        wrapper
-          .find('MenuItem li')
-          .at(1)
-          .prop('style'),
-      ).toEqual({});
-      expect(
-        wrapper
-          .find('MenuItem li')
-          .at(2)
-          .prop('style'),
-      ).toEqual({ display: 'none' });
-      expect(
-        wrapper
-          .find('MenuItem li')
-          .at(3)
-          .prop('style'),
-      ).toEqual({ display: 'none' });
+    await Promise.resolve();
 
-      expect(
-        wrapper
-          .find(overflowIndicatorSelector)
-          .at(2)
-          .prop('style'),
-      ).toEqual({});
-      expect(
-        wrapper
-          .find(overflowIndicatorSelector)
-          .at(3)
-          .prop('style'),
-      ).toEqual({
-        display: 'none',
-      });
-    });
+    expect(errorSpy).not.toHaveBeenCalled();
 
-    describe('props changes', () => {
-      it('should recalculate overflow on children length changes', () => {
-        const liWidths = [50, 50, 50, 50];
-        const availableWidth = 145;
-        const indicatorWidth = 45;
-        const widths = [...liWidths, indicatorWidth, availableWidth];
-        let i = 0;
+    errorSpy.mockRestore();
+  });
 
-        mockedUtil.getWidth = () => {
-          return widths[i++];
-        };
+  describe('Click should close Menu', () => {
+    function test(name, props) {
+      it(name, async () => {
+        jest.useFakeTimers();
 
-        wrapper = mount(createMenu());
+        const onOpenChange = jest.fn();
 
-        expect(wrapper.find(overflowIndicatorSelector).length).toEqual(5);
-        expect(
-          wrapper
-            .find(overflowIndicatorSelector)
-            .at(1)
-            .prop('style'),
-        ).toEqual({
-          display: 'none',
+        const wrapper = mount(
+          <Menu
+            openKeys={['bamboo']}
+            mode="vertical"
+            onOpenChange={onOpenChange}
+            {...props}
+          >
+            <SubMenu key="bamboo" title="Bamboo">
+              <MenuItem key="light">Light</MenuItem>
+            </SubMenu>
+          </Menu>,
+        );
+
+        // Open menu
+        await act(async () => {
+          jest.runAllTimers();
+          wrapper.update();
         });
-        expect(
-          wrapper
-            .find(overflowIndicatorSelector)
-            .at(2)
-            .prop('style'),
-        ).toEqual({});
 
-        wrapper.setProps({ children: <MenuItem>child</MenuItem> });
         wrapper.update();
 
-        expect(wrapper.find(overflowIndicatorSelector).length).toEqual(2);
-        expect(
-          wrapper
-            .find(overflowIndicatorSelector)
-            .at(0)
-            .prop('style'),
-        ).toEqual({
-          display: 'none',
-        });
+        wrapper.find('.rc-menu-item').last().simulate('click');
+        expect(onOpenChange).toHaveBeenCalledWith([]);
+
+        jest.useRealTimers();
       });
+    }
+
+    test('basic');
+    test('not selectable', { selectable: false });
+    test('inlineCollapsed', { mode: 'inline', inlineCollapsed: true });
+
+    it('not close inline', async () => {
+      jest.useFakeTimers();
+
+      const onOpenChange = jest.fn();
+
+      const wrapper = mount(
+        <Menu openKeys={['bamboo']} mode="inline" onOpenChange={onOpenChange}>
+          <SubMenu key="bamboo" title="Bamboo">
+            <MenuItem key="light">Light</MenuItem>
+          </SubMenu>
+        </Menu>,
+      );
+
+      // Open menu
+      await act(async () => {
+        jest.runAllTimers();
+        wrapper.update();
+      });
+
+      wrapper.update();
+
+      wrapper.find('.rc-menu-item').last().simulate('click');
+      expect(onOpenChange).not.toHaveBeenCalled();
+
+      jest.useRealTimers();
     });
   });
 });
+/* eslint-enable */

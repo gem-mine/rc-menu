@@ -1,64 +1,68 @@
 import * as React from 'react';
-import { menuAllProps } from './util';
-import { MenuClickEventHandler } from './interface';
+import classNames from 'classnames';
+import omit from 'rc-util/lib/omit';
+import { parseChildren } from './utils/nodeUtil';
+import { MenuContext } from './context/MenuContext';
+import { useFullPath, useMeasure } from './context/PathContext';
 
 export interface MenuItemGroupProps {
-  disabled?: boolean;
-  renderMenuItem?: (
-    item: React.ReactElement,
-    index: number,
-    key: string,
-  ) => React.ReactElement;
-  index?: number;
   className?: string;
-  subMenuKey?: string;
-  rootPrefixCls?: string;
-  title?: string;
-  onClick?: MenuClickEventHandler;
-  direction?: 'ltr' | 'rtl';
+  title?: React.ReactNode;
+  children?: React.ReactNode;
+
+  /** @private Internal filled key. Do not set it directly */
+  eventKey?: string;
+
+  /** @private Do not use. Private warning empty usage */
+  warnKey?: boolean;
 }
 
-class MenuItemGroup extends React.Component<MenuItemGroupProps> {
-  static isMenuItemGroup = true;
+const InternalMenuItemGroup = ({
+  className,
+  title,
+  eventKey,
+  children,
+  ...restProps
+}: MenuItemGroupProps) => {
+  const { prefixCls } = React.useContext(MenuContext);
 
-  static defaultProps = {
-    disabled: true,
-  };
+  const groupPrefixCls = `${prefixCls}-item-group`;
 
-  renderInnerMenuItem = (item: React.ReactElement) => {
-    const { renderMenuItem, index } = this.props;
-    return renderMenuItem(item, index, this.props.subMenuKey);
-  };
-
-  render() {
-    const { ...props } = this.props;
-    const { className = '', rootPrefixCls } = props;
-    const titleClassName = `${rootPrefixCls}-item-group-title`;
-    const listClassName = `${rootPrefixCls}-item-group-list`;
-    const { title, children } = props;
-    menuAllProps.forEach(key => delete props[key]);
-
-    // Set onClick to null, to ignore propagated onClick event
-    delete props.onClick;
-    delete props.direction;
-
-    return (
-      <li
-        {...(props as any)}
-        className={`${className} ${rootPrefixCls}-item-group`}
+  return (
+    <li
+      {...restProps}
+      onClick={e => e.stopPropagation()}
+      className={classNames(groupPrefixCls, className)}
+    >
+      <div
+        className={`${groupPrefixCls}-title`}
+        title={typeof title === 'string' ? title : undefined}
       >
-        <div
-          className={titleClassName}
-          title={typeof title === 'string' ? title : undefined}
-        >
-          {title}
-        </div>
-        <ul className={listClassName}>
-          {React.Children.map(children, this.renderInnerMenuItem)}
-        </ul>
-      </li>
-    );
-  }
-}
+        {title}
+      </div>
+      <ul className={`${groupPrefixCls}-list`}>{children}</ul>
+    </li>
+  );
+};
 
-export default MenuItemGroup;
+export default function MenuItemGroup({
+  children,
+  ...props
+}: MenuItemGroupProps): React.ReactElement {
+  const connectedKeyPath = useFullPath(props.eventKey);
+  const childList: React.ReactElement[] = parseChildren(
+    children,
+    connectedKeyPath,
+  );
+
+  const measure = useMeasure();
+  if (measure) {
+    return childList as any as React.ReactElement;
+  }
+
+  return (
+    <InternalMenuItemGroup {...omit(props, ['warnKey'])}>
+      {childList}
+    </InternalMenuItemGroup>
+  );
+}

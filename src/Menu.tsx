@@ -1,263 +1,553 @@
 import * as React from 'react';
-import { Provider, create } from 'mini-store';
-import SubPopupMenu, { getActiveKey } from './SubPopupMenu';
-import { noop } from './util';
-import {
-  RenderIconType,
-  SelectInfo,
-  SelectEventHandler,
-  DestroyEventHandler,
-  MenuMode,
-  OpenEventHandler,
-  OpenAnimation,
-  MiniStore,
+import type { CSSMotionProps } from 'rc-motion';
+import classNames from 'classnames';
+import shallowEqual from 'shallowequal';
+import useMergedState from 'rc-util/lib/hooks/useMergedState';
+import warning from 'rc-util/lib/warning';
+import Overflow from 'rc-overflow';
+import type {
   BuiltinPlacements,
-  TriggerSubMenuAction,
   MenuClickEventHandler,
-  MotionType,
+  MenuInfo,
+  MenuMode,
+  SelectEventHandler,
+  TriggerSubMenuAction,
+  SelectInfo,
+  RenderIconType,
 } from './interface';
-import { getMotion } from './utils/legacyUtil';
+import MenuItem from './MenuItem';
+import { parseChildren } from './utils/nodeUtil';
+import MenuContextProvider from './context/MenuContext';
+import useMemoCallback from './hooks/useMemoCallback';
+import { warnItemProp } from './utils/warnUtil';
+import SubMenu from './SubMenu';
+import useAccessibility from './hooks/useAccessibility';
+import useUUID from './hooks/useUUID';
+import { PathRegisterContext, PathUserContext } from './context/PathContext';
+import useKeyRecords, { OVERFLOW_KEY } from './hooks/useKeyRecords';
+import { IdContext } from './context/IdContext';
 
-export interface MenuProps {
-  defaultSelectedKeys?: string[];
-  defaultActiveFirst?: boolean;
-  selectedKeys?: string[];
+/**
+ * Menu modify after refactor:
+ * ## Add
+ * - disabled
+ *
+ * ## Remove
+ * - openTransitionName
+ * - openAnimation
+ * - onDestroy
+ * - siderCollapsed: Seems antd do not use this prop (Need test in antd)
+ * - collapsedWidth: Seems this logic should be handle by antd Layout.Sider
+ */
+
+// optimize for render
+const EMPTY_LIST: string[] = [];
+
+export interface MenuProps
+  extends Omit<
+    React.HTMLAttributes<HTMLUListElement>,
+    'onClick' | 'onSelect' | 'dir'
+  > {
+  prefixCls?: string;
+
+  children?: React.ReactNode;
+
+  disabled?: boolean;
+  /** @private Disable auto overflow. Pls note the prop name may refactor since we do not final decided. */
+  disabledOverflow?: boolean;
+
+  /** direction of menu */
+  direction?: 'ltr' | 'rtl';
+
+  // Mode
+  mode?: MenuMode;
+  inlineCollapsed?: boolean;
+
+  // Open control
   defaultOpenKeys?: string[];
   openKeys?: string[];
-  mode?: MenuMode;
-  getPopupContainer?: (node: HTMLElement) => HTMLElement;
-  onClick?: MenuClickEventHandler;
+
+  // Active control
+  activeKey?: string;
+  defaultActiveFirst?: boolean;
+
+  // Selection
+  selectable?: boolean;
+  multiple?: boolean;
+
+  defaultSelectedKeys?: string[];
+  selectedKeys?: string[];
+
   onSelect?: SelectEventHandler;
-  onOpenChange?: OpenEventHandler;
   onDeselect?: SelectEventHandler;
-  onDestroy?: DestroyEventHandler;
+
+  // Level
+  inlineIndent?: number;
+
+  // Motion
+  /** Menu motion define. Use `defaultMotions` if you need config motion of each mode */
+  motion?: CSSMotionProps;
+  /** Default menu motion of each mode */
+  defaultMotions?: Partial<{ [key in MenuMode | 'other']: CSSMotionProps }>;
+
+  // Popup
   subMenuOpenDelay?: number;
   subMenuCloseDelay?: number;
   forceSubMenuRender?: boolean;
   triggerSubMenuAction?: TriggerSubMenuAction;
-  level?: number;
-  selectable?: boolean;
-  multiple?: boolean;
-  children?: React.ReactNode;
-  className?: string;
-  style?: React.CSSProperties;
-  activeKey?: string;
-  prefixCls?: string;
   builtinPlacements?: BuiltinPlacements;
+
+  // Icon
   itemIcon?: RenderIconType;
   expandIcon?: RenderIconType;
   overflowedIndicator?: React.ReactNode;
-  role?: string;
-  /** Menu motion define */
-  motion?: MotionType;
+  /** @private Internal usage. Do not use in your production. */
+  overflowedIndicatorPopupClassName?: string;
 
-  /** @deprecated Please use `motion` instead */
-  openTransitionName?: string;
-  /** @deprecated Please use `motion` instead */
-  openAnimation?: OpenAnimation;
+  // >>>>> Function
+  getPopupContainer?: (node: HTMLElement) => HTMLElement;
 
-  /** direction of menu */
-  direction?: 'ltr' | 'rtl';
+  // >>>>> Events
+  onClick?: MenuClickEventHandler;
+  onOpenChange?: (openKeys: React.Key[]) => void;
 }
 
-class Menu extends React.Component<MenuProps> {
-  static defaultProps = {
-    selectable: true,
-    onClick: noop,
-    onSelect: noop,
-    onOpenChange: noop,
-    onDeselect: noop,
-    defaultSelectedKeys: [],
-    defaultOpenKeys: [],
-    subMenuOpenDelay: 0.1,
-    subMenuCloseDelay: 0.1,
-    triggerSubMenuAction: 'hover',
-    prefixCls: 'rc-menu',
-    className: '',
-    mode: 'vertical',
-    style: {},
-    builtinPlacements: {},
-    overflowedIndicator: <span>···</span>,
-  };
+interface LegacyMenuProps extends MenuProps {
+  openTransitionName?: string;
+  openAnimation?: string;
+}
 
-  constructor(props: MenuProps) {
-    super(props);
+const Menu: React.FC<MenuProps> = props => {
+  const {
+    prefixCls = 'rc-menu',
+    style,
+    className,
+    tabIndex = 0,
+    children,
+    direction,
 
-    this.isRootMenu = true;
+    id,
 
-    let selectedKeys = props.defaultSelectedKeys;
-    let openKeys = props.defaultOpenKeys;
-    if ('selectedKeys' in props) {
-      selectedKeys = props.selectedKeys || [];
-    }
-    if ('openKeys' in props) {
-      openKeys = props.openKeys || [];
-    }
+    // Mode
+    mode = 'vertical',
+    inlineCollapsed,
 
-    this.store = create({
-      selectedKeys,
-      openKeys,
-      activeKey: { '0-menu-': getActiveKey(props, props.activeKey) },
-    });
-  }
+    // Disabled
+    disabled,
+    disabledOverflow,
 
-  isRootMenu: boolean;
+    // Open
+    subMenuOpenDelay = 0.1,
+    subMenuCloseDelay = 0.1,
+    forceSubMenuRender,
+    defaultOpenKeys,
+    openKeys,
 
-  store: MiniStore;
+    // Active
+    activeKey,
+    defaultActiveFirst,
 
-  innerMenu: typeof SubPopupMenu;
+    // Selection
+    selectable = true,
+    multiple = false,
+    defaultSelectedKeys,
+    selectedKeys,
+    onSelect,
+    onDeselect,
 
-  componentDidMount() {
-    this.updateMiniStore();
-  }
+    // Level
+    inlineIndent = 24,
 
-  componentDidUpdate() {
-    this.updateMiniStore();
-  }
+    // Motion
+    motion,
+    defaultMotions,
 
-  onSelect = (selectInfo: SelectInfo) => {
-    const { props } = this;
-    if (props.selectable) {
-      // root menu
-      let { selectedKeys } = this.store.getState();
-      const selectedKey = selectInfo.key;
-      if (props.multiple) {
-        selectedKeys = selectedKeys.concat([selectedKey]);
-      } else {
-        selectedKeys = [selectedKey];
-      }
-      if (!('selectedKeys' in props)) {
-        this.store.setState({
-          selectedKeys,
-        });
-      }
-      props.onSelect({
-        ...selectInfo,
-        selectedKeys,
-      });
-    }
-  };
+    // Popup
+    triggerSubMenuAction = 'hover',
+    builtinPlacements,
 
-  onClick: MenuClickEventHandler = e => {
-    this.props.onClick(e);
-  };
+    // Icon
+    itemIcon,
+    expandIcon,
+    overflowedIndicator = '...',
+    overflowedIndicatorPopupClassName,
 
-  // onKeyDown needs to be exposed as a instance method
-  // e.g., in rc-select, we need to navigate menu item while
-  // current active item is rc-select input box rather than the menu itself
-  onKeyDown = (e: React.KeyboardEvent<HTMLElement>, callback) => {
-    this.innerMenu.getWrappedInstance().onKeyDown(e, callback);
-  };
+    // Function
+    getPopupContainer,
 
-  onOpenChange = event => {
-    const { props } = this;
-    const openKeys = this.store.getState().openKeys.concat();
-    let changed = false;
-    const processSingle = e => {
-      let oneChanged = false;
-      if (e.open) {
-        oneChanged = openKeys.indexOf(e.key) === -1;
-        if (oneChanged) {
-          openKeys.push(e.key);
-        }
-      } else {
-        const index = openKeys.indexOf(e.key);
-        oneChanged = index !== -1;
-        if (oneChanged) {
-          openKeys.splice(index, 1);
-        }
-      }
-      changed = changed || oneChanged;
-    };
-    if (Array.isArray(event)) {
-      // batch change call
-      event.forEach(processSingle);
-    } else {
-      processSingle(event);
-    }
-    if (changed) {
-      if (!('openKeys' in this.props)) {
-        this.store.setState({ openKeys });
-      }
-      props.onOpenChange(openKeys);
-    }
-  };
+    // Events
+    onClick,
+    onOpenChange,
+    onKeyDown,
 
-  onDeselect = (selectInfo: SelectInfo) => {
-    const { props } = this;
-    if (props.selectable) {
-      const selectedKeys = this.store.getState().selectedKeys.concat();
-      const selectedKey = selectInfo.key;
-      const index = selectedKeys.indexOf(selectedKey);
-      if (index !== -1) {
-        selectedKeys.splice(index, 1);
-      }
-      if (!('selectedKeys' in props)) {
-        this.store.setState({
-          selectedKeys,
-        });
-      }
-      props.onDeselect({
-        ...selectInfo,
-        selectedKeys,
-      });
-    }
-  };
+    // Deprecated
+    openAnimation,
+    openTransitionName,
 
-  getOpenTransitionName = () => {
-    const { props } = this;
-    let transitionName = props.openTransitionName;
-    const animationName = props.openAnimation;
-    if (!transitionName && typeof animationName === 'string') {
-      transitionName = `${props.prefixCls}-open-${animationName}`;
-    }
-    return transitionName;
-  };
+    ...restProps
+  } = props as LegacyMenuProps;
 
-  setInnerMenu = node => {
-    this.innerMenu = node;
-  };
+  const childList: React.ReactElement[] = parseChildren(children, EMPTY_LIST);
+  const [mounted, setMounted] = React.useState(false);
 
-  updateMiniStore() {
-    if ('selectedKeys' in this.props) {
-      this.store.setState({
-        selectedKeys: this.props.selectedKeys || [],
-      });
-    }
-    if ('openKeys' in this.props) {
-      this.store.setState({
-        openKeys: this.props.openKeys || [],
-      });
-    }
-  }
+  const containerRef = React.useRef<HTMLUListElement>();
 
-  render() {
-    let props: MenuProps & { parentMenu?: Menu } = { ...this.props };
-    props.className += ` ${props.prefixCls}-root`;
-    if (props.direction === 'rtl') {
-      props.className += ` ${props.prefixCls}-rtl`;
-    }
-    props = {
-      ...props,
-      onClick: this.onClick,
-      onOpenChange: this.onOpenChange,
-      onDeselect: this.onDeselect,
-      onSelect: this.onSelect,
-      parentMenu: this,
-      motion: getMotion(this.props),
-    };
+  const uuid = useUUID(id);
 
-    delete props.openAnimation;
-    delete props.openTransitionName;
+  const isRtl = direction === 'rtl';
 
-    return (
-      <Provider store={this.store}>
-        <SubPopupMenu {...props} ref={this.setInnerMenu}>
-          {this.props.children}
-        </SubPopupMenu>
-      </Provider>
+  // ========================= Warn =========================
+  if (process.env.NODE_ENV !== 'production') {
+    warning(
+      !openAnimation && !openTransitionName,
+      '`openAnimation` and `openTransitionName` is removed. Please use `motion` or `defaultMotion` instead.',
     );
   }
-}
+
+  // ========================= Mode =========================
+  const [mergedMode, mergedInlineCollapsed] = React.useMemo<
+    [MenuMode, boolean]
+  >(() => {
+    if ((mode === 'inline' || mode === 'vertical') && inlineCollapsed) {
+      return ['vertical', inlineCollapsed];
+    }
+    return [mode, false];
+  }, [mode, inlineCollapsed]);
+
+  // ====================== Responsive ======================
+  const [lastVisibleIndex, setLastVisibleIndex] = React.useState(0);
+  const allVisible =
+    lastVisibleIndex >= childList.length - 1 ||
+    mergedMode !== 'horizontal' ||
+    disabledOverflow;
+
+  // ========================= Open =========================
+  const [mergedOpenKeys, setMergedOpenKeys] = useMergedState(defaultOpenKeys, {
+    value: openKeys,
+    postState: keys => keys || EMPTY_LIST,
+  });
+
+  const triggerOpenKeys = (keys: string[]) => {
+    setMergedOpenKeys(keys);
+    onOpenChange?.(keys);
+  };
+
+  // >>>>> Cache & Reset open keys when inlineCollapsed changed
+  const [inlineCacheOpenKeys, setInlineCacheOpenKeys] =
+    React.useState(mergedOpenKeys);
+
+  const isInlineMode = mergedMode === 'inline';
+
+  const mountRef = React.useRef(false);
+
+  // Cache
+  React.useEffect(() => {
+    if (isInlineMode) {
+      setInlineCacheOpenKeys(mergedOpenKeys);
+    }
+  }, [mergedOpenKeys]);
+
+  // Restore
+  React.useEffect(() => {
+    if (!mountRef.current) {
+      mountRef.current = true;
+      return;
+    }
+
+    if (isInlineMode) {
+      setMergedOpenKeys(inlineCacheOpenKeys);
+    } else {
+      // Trigger open event in case its in control
+      triggerOpenKeys(EMPTY_LIST);
+    }
+  }, [isInlineMode]);
+
+  // ========================= Path =========================
+  const {
+    registerPath,
+    unregisterPath,
+    refreshOverflowKeys,
+
+    isSubPathKey,
+    getKeyPath,
+    getKeys,
+    getSubPathKeys,
+  } = useKeyRecords();
+
+  const registerPathContext = React.useMemo(
+    () => ({ registerPath, unregisterPath }),
+    [registerPath, unregisterPath],
+  );
+
+  const pathUserContext = React.useMemo(
+    () => ({ isSubPathKey }),
+    [isSubPathKey],
+  );
+
+  React.useEffect(() => {
+    refreshOverflowKeys(
+      allVisible
+        ? EMPTY_LIST
+        : childList
+            .slice(lastVisibleIndex + 1)
+            .map(child => child.key as string),
+    );
+  }, [lastVisibleIndex, allVisible]);
+
+  // ======================== Active ========================
+  const [mergedActiveKey, setMergedActiveKey] = useMergedState(
+    activeKey || ((defaultActiveFirst && childList[0]?.key) as string),
+    {
+      value: activeKey,
+    },
+  );
+
+  const onActive = useMemoCallback((key: string) => {
+    setMergedActiveKey(key);
+  });
+
+  const onInactive = useMemoCallback(() => {
+    setMergedActiveKey(undefined);
+  });
+
+  // ======================== Select ========================
+  // >>>>> Select keys
+  const [mergedSelectKeys, setMergedSelectKeys] = useMergedState(
+    defaultSelectedKeys || [],
+    {
+      value: selectedKeys,
+
+      // Legacy convert key to array
+      postState: keys => {
+        if (Array.isArray(keys)) {
+          return keys;
+        }
+
+        if (keys === null || keys === undefined) {
+          return EMPTY_LIST;
+        }
+
+        return [keys];
+      },
+    },
+  );
+
+  // >>>>> Trigger select
+  const triggerSelection = (info: MenuInfo) => {
+    if (selectable) {
+      // Insert or Remove
+      const { key: targetKey } = info;
+      const exist = mergedSelectKeys.includes(targetKey);
+      let newSelectKeys: string[];
+
+      if (multiple) {
+        if (exist) {
+          newSelectKeys = mergedSelectKeys.filter(key => key !== targetKey);
+        } else {
+          newSelectKeys = [...mergedSelectKeys, targetKey];
+        }
+      } else {
+        newSelectKeys = [targetKey];
+      }
+
+      setMergedSelectKeys(newSelectKeys);
+
+      // Trigger event
+      const selectInfo: SelectInfo = {
+        ...info,
+        selectedKeys: newSelectKeys,
+      };
+
+      if (exist) {
+        onDeselect?.(selectInfo);
+      } else {
+        onSelect?.(selectInfo);
+      }
+    }
+
+    // Whatever selectable, always close it
+    if (!multiple && mergedOpenKeys.length && mergedMode !== 'inline') {
+      triggerOpenKeys(EMPTY_LIST);
+    }
+  };
+
+  // ========================= Open =========================
+  /**
+   * Click for item. SubMenu do not have selection status
+   */
+  const onInternalClick = useMemoCallback((info: MenuInfo) => {
+    onClick?.(warnItemProp(info));
+    triggerSelection(info);
+  });
+
+  const onInternalOpenChange = useMemoCallback((key: string, open: boolean) => {
+    let newOpenKeys = mergedOpenKeys.filter(k => k !== key);
+
+    if (open) {
+      newOpenKeys.push(key);
+    } else if (mergedMode !== 'inline') {
+      // We need find all related popup to close
+      const subPathKeys = getSubPathKeys(key);
+      newOpenKeys = newOpenKeys.filter(k => !subPathKeys.has(k));
+    }
+
+    if (!shallowEqual(mergedOpenKeys, newOpenKeys)) {
+      triggerOpenKeys(newOpenKeys);
+    }
+  });
+
+  const getInternalPopupContainer = useMemoCallback(getPopupContainer);
+
+  // ==================== Accessibility =====================
+  const triggerAccessibilityOpen = (key: string, open?: boolean) => {
+    const nextOpen = open ?? !mergedOpenKeys.includes(key);
+
+    onInternalOpenChange(key, nextOpen);
+  };
+
+  const onInternalKeyDown = useAccessibility(
+    mergedMode,
+    mergedActiveKey,
+    isRtl,
+    uuid,
+
+    containerRef,
+    getKeys,
+    getKeyPath,
+
+    setMergedActiveKey,
+    triggerAccessibilityOpen,
+
+    onKeyDown,
+  );
+
+  // ======================== Effect ========================
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // ======================== Render ========================
+
+  // >>>>> Children
+  const wrappedChildList =
+    mergedMode !== 'horizontal' || disabledOverflow
+      ? childList
+      : // Need wrap for overflow dropdown that do not response for open
+        childList.map((child, index) => (
+          // Always wrap provider to avoid sub node re-mount
+          <MenuContextProvider
+            key={child.key}
+            overflowDisabled={index > lastVisibleIndex}
+          >
+            {child}
+          </MenuContextProvider>
+        ));
+
+  // >>>>> Container
+  const container = (
+    <Overflow
+      id={id}
+      ref={containerRef as any}
+      prefixCls={`${prefixCls}-overflow`}
+      component="ul"
+      itemComponent={MenuItem}
+      className={classNames(
+        prefixCls,
+        `${prefixCls}-root`,
+        `${prefixCls}-${mergedMode}`,
+        className,
+        {
+          [`${prefixCls}-inline-collapsed`]: mergedInlineCollapsed,
+          [`${prefixCls}-rtl`]: isRtl,
+        },
+      )}
+      dir={direction}
+      style={style}
+      role="menu"
+      tabIndex={tabIndex}
+      data={wrappedChildList}
+      renderRawItem={node => node}
+      renderRawRest={omitItems => {
+        // We use origin list since wrapped list use context to prevent open
+        const len = omitItems.length;
+
+        const originOmitItems = len ? childList.slice(-len) : null;
+
+        return (
+          <SubMenu
+            eventKey={OVERFLOW_KEY}
+            title={overflowedIndicator}
+            disabled={allVisible}
+            internalPopupClose={len === 0}
+            popupClassName={overflowedIndicatorPopupClassName}
+          >
+            {originOmitItems}
+          </SubMenu>
+        );
+      }}
+      maxCount={
+        mergedMode !== 'horizontal' || disabledOverflow
+          ? Overflow.INVALIDATE
+          : Overflow.RESPONSIVE
+      }
+      ssr="full"
+      data-menu-list
+      onVisibleChange={newLastIndex => {
+        setLastVisibleIndex(newLastIndex);
+      }}
+      onKeyDown={onInternalKeyDown}
+      {...restProps}
+    />
+  );
+
+  // >>>>> Render
+  return (
+    <IdContext.Provider value={uuid}>
+      <MenuContextProvider
+        prefixCls={prefixCls}
+        mode={mergedMode}
+        openKeys={mergedOpenKeys}
+        rtl={isRtl}
+        // Disabled
+        disabled={disabled}
+        // Motion
+        motion={mounted ? motion : null}
+        defaultMotions={mounted ? defaultMotions : null}
+        // Active
+        activeKey={mergedActiveKey}
+        onActive={onActive}
+        onInactive={onInactive}
+        // Selection
+        selectedKeys={mergedSelectKeys}
+        // Level
+        inlineIndent={inlineIndent}
+        // Popup
+        subMenuOpenDelay={subMenuOpenDelay}
+        subMenuCloseDelay={subMenuCloseDelay}
+        forceSubMenuRender={forceSubMenuRender}
+        builtinPlacements={builtinPlacements}
+        triggerSubMenuAction={triggerSubMenuAction}
+        getPopupContainer={getInternalPopupContainer}
+        // Icon
+        itemIcon={itemIcon}
+        expandIcon={expandIcon}
+        // Events
+        onItemClick={onInternalClick}
+        onOpenChange={onInternalOpenChange}
+      >
+        <PathUserContext.Provider value={pathUserContext}>
+          {container}
+        </PathUserContext.Provider>
+
+        {/* Measure menu keys. Add `display: none` to avoid some developer miss use the Menu */}
+        <div style={{ display: 'none' }} aria-hidden>
+          <PathRegisterContext.Provider value={registerPathContext}>
+            {childList}
+          </PathRegisterContext.Provider>
+        </div>
+      </MenuContextProvider>
+    </IdContext.Provider>
+  );
+};
 
 export default Menu;
