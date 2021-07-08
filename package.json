@@ -1,5 +1,5 @@
 {
-  "name": "rc-menu",
+  "name": "@gem-mine/rc-menu",
   "version": "9.0.12",
   "description": "menu ui component for react",
   "keywords": [
@@ -67,6 +67,7 @@
     "gh-pages": "^3.1.0",
     "less": "^3.10.3",
     "np": "^6.0.0",
+    "pre-commit": "^1.2.2",
     "react": "^16.9.0",
     "react-dom": "^16.9.0",
     "regenerator-runtime": "^0.13.7",

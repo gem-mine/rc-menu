@@ -25,6 +25,7 @@ export interface PopupTriggerProps {
   popupOffset?: number[];
   disabled: boolean;
   onVisibleChange: (visible: boolean) => void;
+  getTriggerDOMNode?: (node: React.ReactInstance) => HTMLElement;
 }
 
 export default function PopupTrigger({
@@ -37,6 +38,7 @@ export default function PopupTrigger({
   disabled,
   mode,
   onVisibleChange,
+  getTriggerDOMNode,
 }: PopupTriggerProps) {
   const {
     getPopupContainer,
@@ -104,6 +106,7 @@ export default function PopupTrigger({
       onPopupVisibleChange={onVisibleChange}
       forceRender={forceSubMenuRender}
       popupMotion={mergedMotion}
+      getTriggerDOMNode={getTriggerDOMNode}
     >
       {children}
     </Trigger>

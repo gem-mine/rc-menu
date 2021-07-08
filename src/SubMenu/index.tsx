@@ -62,6 +62,9 @@ export interface SubMenuProps {
   onTitleMouseEnter?: MenuHoverEventHandler;
   onTitleMouseLeave?: MenuHoverEventHandler;
 
+  // for trigger:  fish 层水平导航（二级菜单统一浮层）时指定 trigger 元素
+  getTriggerDOMNode?: (node: React.ReactInstance) => HTMLElement;
+
   // >>>>>>>>>>>>>>>>>>>>> Next  Round <<<<<<<<<<<<<<<<<<<<<<<
   // onDestroy?: DestroyEventHandler;
 }
@@ -95,6 +98,7 @@ const InternalSubMenu = (props: SubMenuProps) => {
     onTitleClick,
     onTitleMouseEnter,
     onTitleMouseLeave,
+    getTriggerDOMNode,
 
     ...restProps
   } = props;
@@ -311,6 +315,7 @@ const InternalSubMenu = (props: SubMenuProps) => {
         }
         disabled={mergedDisabled}
         onVisibleChange={onPopupVisibleChange}
+        getTriggerDOMNode={getTriggerDOMNode}
       >
         {titleNode}
       </PopupTrigger>
